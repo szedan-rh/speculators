@@ -154,9 +154,16 @@ def create_transformer_layer_config(  # noqa: C901
             "nor 'hidden_activation'"
         )
 
+    hc_mult = getattr(verifier_config, "hc_mult", 1)
+
     head_dim = getattr(verifier_config, "head_dim", None)
     num_attention_heads = verifier_config.num_attention_heads
     num_key_value_heads = verifier_config.num_key_value_heads
+
+    if hc_mult > 1 and head_dim is not None:
+        head_dim = (
+            hc_mult * verifier_config.hidden_size // verifier_config.num_attention_heads
+        )
 
     if (
         head_dim
@@ -194,6 +201,7 @@ def create_transformer_layer_config(  # noqa: C901
         tie_word_embeddings=False,
         sliding_window=sliding_window,
         layer_types=layer_types,
+        hc_mult=hc_mult,
     )
 
     # New rope parameters definition introduced in transformers 5.0
@@ -359,6 +367,9 @@ def main(args: argparse.Namespace):
     # Get target layer IDs from the model (resolved at model level)
     num_target_layers = len(draft_model.target_layer_ids)
 
+    hc_mult = getattr(transformer_layer_config, "hc_mult", 1)
+    effective_hidden_size = hc_mult * transformer_layer_config.hidden_size
+
     if args.speculator_type == "mtp":
         args.num_speculative_steps = draft_model.config.num_speculative_steps
 
@@ -422,7 +433,7 @@ def main(args: argparse.Namespace):
         train_dataset,
         world_size,
         local_rank,
-        transformer_layer_config.hidden_size,
+        effective_hidden_size,
         num_target_layers=num_target_layers,
         num_workers=args.num_workers,
         prefetch_factor=args.prefetch_factor,
@@ -432,7 +443,7 @@ def main(args: argparse.Namespace):
         val_dataset,
         world_size,
         local_rank,
-        transformer_layer_config.hidden_size,
+        effective_hidden_size,
         num_target_layers=num_target_layers,
         num_workers=args.num_workers,
         prefetch_factor=args.prefetch_factor,

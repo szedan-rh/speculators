@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_REQUEST_TIMEOUT = 120  # seconds
+DEFAULT_REQUEST_TIMEOUT = 180  # seconds
 DEFAULT_MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 2  # seconds
 

@@ -388,6 +388,7 @@ def _get_input_ids_loss_mask(
     max_length: int,
     assistant_pattern: str | Pattern[str] | None,
     *,
+    format_fn: Callable[[list[dict]], str] | None = None,
     # For logging
     conv_idx: int | None = None,
 ):
@@ -453,11 +454,14 @@ def _get_input_ids_loss_mask(
         assert isinstance(formatted_text, str)
     else:
         # More optimized flow for text-only processors (i.e. tokenizers)
-        formatted_text = processor.apply_chat_template(
-            hf_conv,
-            tokenize=False,
-            add_generation_prompt=False,
-        )
+        if format_fn is not None:
+            formatted_text = format_fn(normalized_conv)
+        else:
+            formatted_text = processor.apply_chat_template(
+                hf_conv,
+                tokenize=False,
+                add_generation_prompt=False,
+            )
         assert isinstance(formatted_text, str)
 
         # Tokenize and get offsets
@@ -485,6 +489,7 @@ def _preprocess_batch(
     assistant_pattern: str | Pattern[str] | None,
     turn_dropout: bool = False,
     minimum_valid_tokens: int | None = None,
+    format_fn: Callable[[list[dict]], str] | None = None,
 ) -> dict[str, list]:
     """Process a batch of conversations into tokenized format with loss masks."""
 
@@ -514,6 +519,7 @@ def _preprocess_batch(
                 processor,
                 max_length=max_length,
                 assistant_pattern=assistant_pattern,
+                format_fn=format_fn,
                 conv_idx=idx,
             )
         except (TypeError, ValueError, KeyError, AttributeError, RuntimeError) as e:
@@ -553,6 +559,7 @@ def build_eagle3_dataset(
     assistant_pattern: str | Pattern[str] | None = None,
     turn_dropout: bool = False,
     minimum_valid_tokens: int | None = None,
+    format_fn: Callable[[list[dict]], str] | None = None,
 ) -> HFDataset:
     """Build EAGLE3 dataset by tokenizing conversations and creating loss masks.
 
@@ -597,6 +604,7 @@ def build_eagle3_dataset(
                 assistant_pattern,
                 turn_dropout,
                 minimum_valid_tokens,
+                format_fn,
             ),
             batched=True,
             num_proc=num_proc,
@@ -704,11 +712,31 @@ def load_and_preprocess_dataset(
     log.subsection("Loading processor")
     processor = load_processor(target_model_path, trust_remote_code=trust_remote_code)
 
+    format_fn = None
     if not hasattr(processor, "apply_chat_template") or processor.chat_template is None:
-        raise ValueError(
-            f"Processor for {target_model_path} does not support chat templates. "
-            "Please use a model with a pre-configured chat template."
+        from transformers import AutoConfig  # noqa: PLC0415
+
+        config = AutoConfig.from_pretrained(
+            target_model_path, trust_remote_code=trust_remote_code
         )
+        if getattr(config, "model_type", None) == "deepseek_v4":
+            from speculators.data_generation.chat_templates import (  # noqa: PLC0415
+                DSV4_ASSISTANT_PATTERN,
+                dsv4_format_conversation,
+            )
+
+            format_fn = dsv4_format_conversation
+            if assistant_pattern is None:
+                assistant_pattern = DSV4_ASSISTANT_PATTERN
+            log.info(
+                "Using vendored DSv4 chat template (tokenizer lacks chat_template)"
+            )
+        else:
+            raise ValueError(
+                f"Processor for {target_model_path} does not support chat "
+                "templates and no vendored template is available for model "
+                f"type '{getattr(config, 'model_type', 'unknown')}'."
+            )
 
     processed_datasets = []
     for train_data_path in train_data_paths:
@@ -742,6 +770,7 @@ def load_and_preprocess_dataset(
             assistant_pattern=assistant_pattern,
             turn_dropout=turn_dropout,
             minimum_valid_tokens=minimum_valid_tokens,
+            format_fn=format_fn,
         )
         if minimum_valid_tokens is not None:
             log.info(f"Kept {len(preprocessed_dataset)} samples after filtering")
