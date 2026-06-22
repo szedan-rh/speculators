@@ -62,7 +62,7 @@ MODE="${MODE:-test}"
 # Mode-specific settings
 if [ "$MODE" = "test" ]; then
     MAX_SAMPLES_FLAG="--max-samples 100"
-    LOGGER_FLAG=""
+    LOGGER_FLAG="--logger trackio"
     echo "=== Running in TEST mode (100 samples, no experiment tracking) ==="
 elif [ "$MODE" = "full" ]; then
     MAX_SAMPLES_FLAG=""
@@ -147,7 +147,8 @@ run_training() {
         --checkpoint-freq "$CHECKPOINT_FREQ" \
         --on-missing generate \
         --on-generate delete \
-        $LOGGER_FLAG
+        $LOGGER_FLAG \
+        --run-name "dflash-dsv4-flash-online-test"
 }
 
 if [ "$MODE" = "full" ]; then
