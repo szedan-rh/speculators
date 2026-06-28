@@ -1,6 +1,7 @@
 import logging
 import os
 import warnings
+from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -33,7 +34,14 @@ def maybe_setup_distributed() -> tuple[int, int, int, bool]:
     if acc is None:
         raise ValueError("No accelerator found")
     backend = torch.distributed.get_default_backend_for_device(acc)
-    dist.init_process_group(backend, device_id=local_rank)
+    # Online training blocks each rank on vLLM hidden-state requests between
+    # collectives. Under heavy extraction load a request can take much longer
+    # than the 10-minute NCCL default, which would trip the collective watchdog
+    # and abort training. Allow it to be raised via SPECULATORS_DIST_TIMEOUT_SEC.
+    dist_timeout = timedelta(
+        seconds=int(os.environ.get("SPECULATORS_DIST_TIMEOUT_SEC", "3600"))
+    )
+    dist.init_process_group(backend, device_id=local_rank, timeout=dist_timeout)
 
     rank = dist.get_rank()
 
