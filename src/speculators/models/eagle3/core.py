@@ -10,7 +10,6 @@ from speculators.model import DraftVocabMixin, SpeculatorModel
 from speculators.models.eagle3 import Eagle3SpeculatorConfig
 from speculators.models.eagle3.attention import (
     create_combined_mask_mod,
-    extend_dense_mask_for_draft_tokens,
     extend_mask_for_draft_tokens,
 )
 from speculators.models.eagle3.metrics import compute_metrics
