@@ -88,7 +88,7 @@ class Eagle3DraftModel(DraftVocabMixin, SpeculatorModel):
         ]
         self.uses_sliding_window_attn = bool(self.sliding_window_indices)
         self.uses_full_attn = bool(num_layers - len(self.sliding_window_indices))
-        self._attn_sliding_windows = []
+        self._attn_sliding_windows: list[int | None] = []
         if self.uses_full_attn:
             self._attn_sliding_windows.append(None)
         if self.uses_sliding_window_attn:
