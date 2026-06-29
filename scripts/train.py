@@ -448,14 +448,9 @@ def main(args: argparse.Namespace):  # noqa: C901
     else:
         d2t, t2d, draft_vocab_size = parse_vocab_mappings(args)
 
-        if args.sliding_window_indices and args.speculator_type not in (
-            "dflash",
-            "dspark",
-        ):
+        if args.sliding_window_indices and args.speculator_type == "mtp":
             raise ValueError(
-                "Currently sliding window attention is only supported by dflash "
-                "and dspark draft models. Please open an issue/pr if you would like "
-                "to use sliding window attention with a different speculator type"
+                "Sliding window attention is not supported by mtp draft models."
             )
 
     registry = SpeculatorModel.registry
