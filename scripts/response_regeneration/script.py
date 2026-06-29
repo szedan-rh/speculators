@@ -6,7 +6,6 @@ import os
 import re
 import sys
 import time
-from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -30,49 +29,7 @@ DATASET_CONFIGS = {
         "default_split": "train",
         "subset": "main",
     },
-    "sharegpt4v_coco": {
-        "id": "Lin-Chen/ShareGPT4V",
-        "default_split": "train",
-        "subset": "ShareGPT4V",
-        "multimodal": True,
-    },
 }
-
-
-def _get_coco_dir():
-    return os.getenv("COCO_DIR") or "coco/"
-
-
-def _filter_sharegpt4v_coco(row):
-    return row.get("image", "").startswith("coco/")
-
-
-def _extract_sharegpt4v_coco_prompt(row):
-    """Extract multimodal prompt from a ShareGPT4V COCO row."""
-    coco_dir = _get_coco_dir()
-    image_path = os.path.join(coco_dir, row["image"].removeprefix("coco/"))
-    if not os.path.exists(image_path):
-        return None, None
-
-    convs = row.get("conversations", [])
-    user_turn = next((t for t in convs if t.get("from") in ("human", "user")), None)
-    if not user_turn:
-        return None, None
-
-    text = user_turn["value"].replace("<image>", "").strip()
-    image_url = f"file://{Path(image_path).absolute()}"
-
-    messages = [{"role": "user", "content": [
-        {"type": "image_url", "image_url": {"url": image_url}},
-        {"type": "text", "text": text},
-    ]}]
-
-    user_conv = {"from": "human", "value": [
-        {"type": "image", "path": str(Path(image_path).absolute())},
-        {"type": "text", "text": text},
-    ]}
-
-    return messages, user_conv
 
 
 def parse_args():
@@ -209,12 +166,9 @@ async def worker(
             return
 
         idx = item["idx"]
-        messages = item.get("messages") or [
-            {"role": "user", "content": item["prompt"]}
-        ]
         payload = {
             "model": args.model,
-            "messages": messages,
+            "messages": [{"role": "user", "content": item["prompt"]}],
             "max_tokens": args.max_tokens,
         }
 
@@ -245,13 +199,10 @@ async def worker(
             if reasoning_content is not None:
                 metadata["reasoning_content"] = reasoning_content
 
-            user_conv = item.get("user_conv") or {
-                "from": "human", "value": item["prompt"]
-            }
             output = {
                 "id": item.get("uuid") or f"sample_{idx}",
                 "conversations": [
-                    user_conv,
+                    {"from": "human", "value": item["prompt"]},
                     {"from": "gpt", "value": generated_text},
                 ],
                 "metadata": metadata,
@@ -260,12 +211,9 @@ async def worker(
             out_fh.flush()
             stats["ok"] += 1
         except Exception as e:  # noqa: BLE001
-            user_conv = item.get("user_conv") or {
-                "from": "human", "value": item["prompt"]
-            }
             error_output = {
                 "id": item.get("uuid") or f"sample_{idx}",
-                "conversations": [user_conv],
+                "conversations": [{"from": "human", "value": item["prompt"]}],
                 "metadata": {
                     "idx": idx,
                     "error": repr(e),
@@ -301,8 +249,7 @@ async def main():
     # Get dataset configuration
     dataset_config = DATASET_CONFIGS[args.dataset]
     dataset_id = dataset_config["id"]
-    is_multimodal = dataset_config.get("multimodal", False)
-    prompt_field = dataset_config.get("prompt_field")
+    prompt_field = dataset_config["prompt_field"]
 
     # Use dataset-specific defaults if not provided
     split = args.split if args.split is not None else dataset_config["default_split"]
@@ -373,32 +320,22 @@ async def main():
                 if args.language_filter and row.get("language") != args.language_filter:
                     continue
 
+                prompt = row.get(prompt_field)
+                if not prompt:
+                    continue
+
                 uuid = row.get("uuid")
                 key = str(uuid or index)
                 if key in seen_ids:
                     continue
 
-                if is_multimodal and args.dataset == "sharegpt4v_coco":
-                    if not _filter_sharegpt4v_coco(row):
-                        continue
-                    api_messages, user_conv = _extract_sharegpt4v_coco_prompt(row)
-                    if api_messages is None:
-                        continue
-                    await queue.put({
-                        "idx": index,
-                        "uuid": uuid,
-                        "messages": api_messages,
-                        "user_conv": user_conv,
-                    })
-                else:
-                    prompt = row.get(prompt_field)
-                    if not prompt:
-                        continue
-                    await queue.put({
+                await queue.put(
+                    {
                         "idx": index,
                         "uuid": uuid,
                         "prompt": prompt,
-                    })
+                    }
+                )
                 processed_count += 1
 
             # Signal workers to stop
