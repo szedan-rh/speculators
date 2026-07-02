@@ -129,6 +129,8 @@ CUDA_VISIBLE_DEVICES="$VLLM_GPUS" python scripts/launch_vllm.py "$MODEL" \
     --trust-remote-code \
     --kv-cache-dtype fp8 \
     --block-size 256 \
+    --enable-chunked-prefill \
+    --max-num-batched-tokens "${VLLM_MAX_NUM_BATCHED_TOKENS:-2048}" \
     --max-model-len 16384 \
     --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","custom_ops":["all"]}' &
 VLLM_PID=$!

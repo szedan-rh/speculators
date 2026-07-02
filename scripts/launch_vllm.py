@@ -104,9 +104,14 @@ def main():
         *vllm_args,
     ]
 
-    disable_cp_arg = "--no-enable-chunked-prefill"
-    if disable_cp_arg not in cmd:
-        cmd.append(disable_cp_arg)
+    # Hidden-state extraction historically required chunked prefill off
+    # (vLLM #37374). On newer vLLM, models like DeepSeek-V4-Flash support (and
+    # prefer) chunked prefill, and disabling it makes long prompts un-admittable
+    # to the KV cache. Default to off for backward compatibility, but let the
+    # caller override by passing an explicit chunked-prefill flag through.
+    chunked_prefill_flags = ("--no-enable-chunked-prefill", "--enable-chunked-prefill")
+    if not any(flag in cmd for flag in chunked_prefill_flags):
+        cmd.append("--no-enable-chunked-prefill")
 
     print("Running command:")
     print(" ".join(cmd))

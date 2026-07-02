@@ -102,6 +102,17 @@ def parse_args():
         default=None,
         help="Maximum number of samples to process (default: None, process all)",
     )
+    parser.add_argument(
+        "--max-seq-len",
+        type=int,
+        default=None,
+        help=(
+            "Skip samples whose tokenized length (the dataset 'seq_len' column) "
+            "exceeds this value. Use to drop long prompts the server cannot admit "
+            "to its KV cache (which would otherwise head-of-line block the queue). "
+            "(default: None, no length filtering)"
+        ),
+    )
 
     # Output arguments
     parser.add_argument(
@@ -333,6 +344,18 @@ async def generate_and_save_hidden_states(args, dataset):
         args.world_size,
         args.rank,
     )
+
+    if args.max_seq_len is not None:
+        seq_lens = dataset["seq_len"]
+        before = len(to_process)
+        to_process = [i for i in to_process if seq_lens[i] <= args.max_seq_len]
+        dropped = before - len(to_process)
+        if dropped:
+            logger.info(
+                f"Length filter (--max-seq-len={args.max_seq_len}): skipping "
+                f"{dropped} of {before} samples with seq_len > {args.max_seq_len}"
+            )
+
     if not to_process:
         return
 

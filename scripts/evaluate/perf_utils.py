@@ -301,7 +301,11 @@ def parse_prometheus_metrics(raw_text: str) -> list[Metric]:
         pos_values.sort()
         values = [0.0] * (pos_values[-1][0] + 1)
         for pos, val in pos_values:
-            values[pos] = val
+            # Metrics are emitted per engine (one series per DP rank), so the
+            # same position appears once per engine. Sum across engines rather
+            # than overwriting, otherwise per-position acceptance is only one
+            # engine's count divided by all engines' drafts (under-scaled ~N_dp).
+            values[pos] += val
         metrics.append(Vector(name=name, values=values))
 
     return metrics
