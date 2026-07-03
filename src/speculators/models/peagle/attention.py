@@ -57,7 +57,7 @@ def create_peagle_mask_mod(
         is_anchor_causal = q_anchor_pos >= kv_anchor_pos
 
         in_window = (
-            (kv_anchor_pos >= q_anchor_pos + q_depth - sliding_window)
+            (kv_anchor_pos > q_anchor_pos + q_depth - sliding_window)
             if sliding_window is not None
             else True
         )

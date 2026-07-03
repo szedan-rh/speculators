@@ -16,7 +16,7 @@ def create_combined_mask_mod(
     def causal_mask_mod(_b, _h, q_idx, kv_idx):
         causal = q_idx >= kv_idx
         if sliding_window is not None:
-            causal = causal & (kv_idx >= q_idx - sliding_window)
+            causal = causal & (kv_idx > q_idx - sliding_window)
         return causal
 
     def document_mask_mod(_b, _h, q_idx, kv_idx):

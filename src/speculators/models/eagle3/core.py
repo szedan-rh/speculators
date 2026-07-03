@@ -11,6 +11,7 @@ from speculators.models.attention import create_float_mask
 from speculators.models.eagle3 import Eagle3SpeculatorConfig
 from speculators.models.eagle3.attention import (
     create_combined_mask_mod,
+    extend_dense_mask_for_draft_tokens,
     extend_mask_for_draft_tokens,
 )
 from speculators.models.eagle3.metrics import compute_metrics
@@ -338,12 +339,22 @@ class Eagle3DraftModel(DraftVocabMixin, SpeculatorModel):
                 )
                 # shape: [1, total_seq_len]
 
-            if full_attn_mask is not None:
-                full_attn_mask = extend_mask_for_draft_tokens(full_attn_mask)
-            if sliding_window_attn_mask is not None:
-                sliding_window_attn_mask = extend_mask_for_draft_tokens(
-                    sliding_window_attn_mask
-                )
+            if self._attn_impl == "simple_flex_attention":
+                if full_attn_mask is not None:
+                    full_attn_mask = extend_mask_for_draft_tokens(full_attn_mask)
+                if sliding_window_attn_mask is not None:
+                    sliding_window_attn_mask = extend_mask_for_draft_tokens(
+                        sliding_window_attn_mask
+                    )
+            else:
+                if full_attn_mask is not None:
+                    full_attn_mask = extend_dense_mask_for_draft_tokens(
+                        full_attn_mask, total_seq_len
+                    )
+                if sliding_window_attn_mask is not None:
+                    sliding_window_attn_mask = extend_dense_mask_for_draft_tokens(
+                        sliding_window_attn_mask, total_seq_len
+                    )
             position_ids = position_ids + 1
             # shape: [1, total_seq_len]
 

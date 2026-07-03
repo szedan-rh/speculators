@@ -438,6 +438,10 @@ def main(args: argparse.Namespace):  # noqa: C901
                 "--draft-attn-impl is not configurable for MTP. "
                 "Must be left with the default value ('simple_flex_attention')."
             )
+        if args.sliding_window_indices:
+            raise ValueError(
+                "Sliding window attention is not supported by mtp draft models."
+            )
         # MTP reuses the verifier's own decoder as the draft and extracts the
         # native MTP head weights from the verifier, so there are no vocab
         # mappings or draft mask token to resolve from the CLI. This works both
@@ -448,11 +452,6 @@ def main(args: argparse.Namespace):  # noqa: C901
         args.mask_token_id = None
     else:
         d2t, t2d, draft_vocab_size = parse_vocab_mappings(args)
-
-        if args.sliding_window_indices and args.speculator_type == "mtp":
-            raise ValueError(
-                "Sliding window attention is not supported by mtp draft models."
-            )
 
     registry = SpeculatorModel.registry
     if registry is None or args.speculator_type not in registry:
