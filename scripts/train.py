@@ -166,7 +166,12 @@ def create_transformer_layer_config(  # noqa: C901
                 }
             config.rope_parameters = rope_params
 
-            _MROPE_KEYS = ("mrope_section", "mrope_interleaved", "type", "partial_rotary_factor")  # noqa: N806
+            _MROPE_KEYS = (  # noqa: N806
+                "mrope_section",
+                "mrope_interleaved",
+                "type",
+                "partial_rotary_factor",
+            )
             for key in _MROPE_KEYS:
                 config.rope_parameters.pop(key, None)
     else:
